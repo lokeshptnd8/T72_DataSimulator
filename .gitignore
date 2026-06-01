@@ -147,6 +147,20 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 
+# Python Environment
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Massive Data Exports (Local only)
+*.csv
+*.npz
+
+# IDE Configurations
+.vscode/
+.idea/
+
 # Environments
 .env
 .envrc
