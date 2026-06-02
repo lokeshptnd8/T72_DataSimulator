@@ -156,6 +156,7 @@ __pycache__/
 # Massive Data Exports (Local only)
 *.csv
 *.npz
+*.xml
 
 # IDE Configurations
 .vscode/

@@ -155,10 +155,22 @@ for unit in range(num_engines):
         Fuel_Percent = (V_fuel / p["fuel_capacity_0"]) * 100.0
         Engine_Hours = hour + (sol.t / 3600.0)
         
-        session_telemetry = np.column_stack((
-            T_oil, T_cool, P_oil, P_gear, RPM, Current, Voltage, Fuel_Percent, Engine_Hours
-        ))
-        dataset_raw_telemetry.append(session_telemetry)
+        # Formats the session data into a beautifully labeled tabular DataFrame
+        session_df = pd.DataFrame({
+            'Engine_ID': unit,
+            'Session_Base_Hour': hour,
+            'Time_Step_Sec': sol.t,
+            'CH1_T_oil': T_oil,
+            'CH2_T_cool': T_cool,
+            'CH3_P_oil': P_oil,
+            'CH4_P_gear': P_gear,
+            'CH5_RPM': RPM,
+            'CH6_Current': Current,
+            'CH7_Voltage': Voltage,
+            'CH8_Fuel_Pct': Fuel_Percent,
+            'CH9_Engine_Hours': Engine_Hours
+        })
+        dataset_raw_telemetry.append(session_df)
 
         # 4. Extract the exact ML targets
         ml_features = extract_ml_features(sol.t, sol.y, deg_params)
@@ -178,17 +190,24 @@ df = pd.DataFrame(dataset_ml)
 df.to_csv("t72_ml_features.csv", index=False)
 
 # Export 2: The Raw 9-Channel Telemetry (NPZ)
-raw_matrix = np.array(dataset_raw_telemetry)
-np.savez("t72_raw_9channel_telemetry.npz", telemetry=raw_matrix)
+# Export 2: Raw Telemetry (CSV and XML)
+print("\n[SYSTEM] Compiling tabular telemetry...")
+df_telemetry = pd.concat(dataset_raw_telemetry, ignore_index=True)
+
+print("[SYSTEM] Exporting to CSV...")
+df_telemetry.to_csv("t72_raw_telemetry.csv", index=False)
+
+print("[SYSTEM] Exporting to XML (This may take a moment for large datasets)...")
+df_telemetry.to_xml("t72_raw_telemetry.xml", index=False, root_name="FleetTelemetry", row_name="SensorReading", parser="etree")
 
 # --- EXECUTION SUMMARY ---
 print("\n========================================================")
 print("  DATA GENERATION SUMMARY")
 print("========================================================")
 print(f"  Total Data Points (Rows)  : {total_data_points:,}")
-print(f"  Matrix Dimensions         : {raw_matrix.shape}")
+print(f"  Tabular Dimensions        : {df_telemetry.shape}")
 print("--------------------------------------------------------")
 for unit, count in points_per_engine.items():
     print(f"  -> Engine {unit} generated      : {count:,} points")
 print("========================================================\n")
-print("[SYSTEM] Export Complete. Saved to 't72_ml_features.csv' and 't72_raw_9channel_telemetry.npz'.")
+print("[SYSTEM] Export Complete. Saved to 't72_ml_features.csv' and 't72_raw_telemetry.xml'.")
