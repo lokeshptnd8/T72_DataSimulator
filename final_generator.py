@@ -125,15 +125,25 @@ for unit in range(num_engines):
     print(f"Processing Virtual Engine {unit}...")
     points_per_engine[unit] = 0
     
+    # 1. Randomize the onset of degradation (The Healthy Plateau)
+    # The engine will remain perfectly healthy until this specific hour
+    onset_hour = np.random.randint(50, 100) 
+    
     for hour in engine_hours:
-        # 1. The Degradation Physics
+        
+        # 2. Calculate active wear: 0 if we haven't reached the onset hour yet
+        active_wear_h = max(0, hour - onset_hour)
+        
+        # 3. The Degradation Physics (Now using active_wear_h instead of total hour)
         deg_params = {
-            'bearing_wear': 1.0 * (1 + 0.000003 * (hour ** 2.1)), 
-            'h_rad': max(100.0, p.get("h_rad_base", 1800.0) * (1 - 0.005 * hour)),     
-            'clutch_wear': max(0.6, 1.0 - 0.0008 * hour),         
-            'sulfation': 10.0 + (0.05 * hour)                     
+            'bearing_wear': 1.0 * (1 + 0.000003 * (active_wear_h ** 2.1)), 
+            'h_rad': max(100.0, p.get("h_rad_base", 1800.0) * (1 - 0.005 * active_wear_h)),     
+            'clutch_wear': max(0.6, 1.0 - 0.0008 * active_wear_h),         
+            'sulfation': 10.0 + (0.05 * active_wear_h)                     
         }
         p["h_rad"] = deg_params['h_rad']
+        
+        # ... (ODE solver and the rest of the loop remains exactly the same) ...
         
         # 2. Run the ODE Session dynamically based on user input duration
         t_eval = np.arange(0, session_duration_seconds, 1.0)
@@ -198,7 +208,7 @@ print("[SYSTEM] Exporting to CSV...")
 df_telemetry.to_csv("t72_raw_telemetry.csv", index=False)
 
 print("[SYSTEM] Exporting to XML (This may take a moment for large datasets)...")
-df_telemetry.to_xml("t72_raw_telemetry.xml", index=False, root_name="FleetTelemetry", row_name="SensorReading", parser="etree")
+#df_telemetry.to_xml("t72_raw_telemetry.xml", index=False, root_name="FleetTelemetry", row_name="SensorReading", parser="etree")
 
 # --- EXECUTION SUMMARY ---
 print("\n========================================================")

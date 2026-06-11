@@ -51,18 +51,32 @@ def calculate_gearoil_pressure(omega, clutch_wear):
     return pressure
 
 def calculate_electrical(omega, battery_sulfation):
-    """Battery GPR Target: 48V cranking transient, dipping lower as sulfation increases."""
-    rpm = omega # REMOVED 9.549 multiplier
+    """
+    Battery GPR Target: 48V cranking transient spike, dipping lower as sulfation increases,
+    and stabilizing to the alternator regulation voltage.
+    """
+    rpm = omega 
     alt_freq = rpm * p["alt_pulley_ratio"] * 0.1 
     
+    # Define engine states based on RPM threshold
+    is_off = (rpm == 0)
     is_cranking = (rpm > 0) & (rpm < 400)
     is_running = (rpm >= 400)
     
-    raw_voltage = np.where(is_running, p["V_alt_reg"], 
-                  np.where(is_cranking, 48.0, p["V_battery_0"]))
+    # --- VOLTAGE SPIKE & SAG PROFILE ---
+    # 1. At 0 RPM: 24V (Parallel battery configuration)
+    # 2. Cranking (0-400 RPM): Relays click to Series (48V). 
+    #    We simulate an immediate spike to 48V that physically sags due to heavy 
+    #    current draw as the starter spins up. The sag worsens based on battery sulfation.
+    cranking_voltage = 48.0 - battery_sulfation - (rpm / 400.0) * 8.0
     
-    voltage = np.where(is_cranking, raw_voltage - battery_sulfation, raw_voltage)
+    voltage = np.where(is_running, p["V_alt_reg"], 
+              np.where(is_cranking, cranking_voltage, p["V_battery_0"]))
+    
+    # --- CURRENT DRAW PROFILE ---
+    # Starter engagement pulls massive negative amperage, recovering as RPM builds.
+    # Alternator provides positive charge once running.
     current = np.where(is_running, 15.0 - (rpm * 0.001), 
-              np.where(is_cranking, -400.0, -10.0)) 
+              np.where(is_cranking, -600.0 + (rpm * 0.8), -10.0)) 
     
     return alt_freq, voltage, current
