@@ -231,3 +231,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+v46_synthetic_simulator_design.md

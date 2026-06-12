@@ -164,7 +164,63 @@ for unit in range(num_engines):
         _, Voltage, Current = calculate_electrical(omega, deg_params['sulfation'])
         Fuel_Percent = (V_fuel / p["fuel_capacity_0"]) * 100.0
         Engine_Hours = hour + (sol.t / 3600.0)
+
+        # ====================================================================
+        # --- ACUTE ANOMALY INJECTION BLOCK ---
+        # Explicitly breaking the healthy operational bounds to train the ML model.
+        # This gives your models actual failure data to learn from.
+        # ====================================================================
+
+        # Anomaly 1: Severe Overheating (Violating 70-100°C bound)
+        if unit == 0 and hour == 300:
+            # Simulate a stuck thermostat in the last 5 minutes (300 seconds)
+            T_cool[-300:] = np.linspace(T_cool[-300], 118.0, 300) 
+            T_oil[-300:] = np.linspace(T_oil[-300], 125.0, 300)   
+
+        # Anomaly 2: Catastrophic Lubrication Failure (Violating 5-10 kg/cm² bound)
+        if unit == 1 and hour == 400:
+            # P_oil drops entirely out of the healthy range to ~2.5 kg/cm²
+            P_oil = P_oil * 0.4 
+
+        # Anomaly 3: Alternator Failure (Violating 22-28V operational bound)
+        if unit == 2 and hour == 250:
+            # Alternator dies mid-session. Voltage sags to battery baseline.
+            is_running = RPM >= 400
+            Voltage[is_running] = np.linspace(24.0, 19.5, len(Voltage[is_running])) 
+
+        # Anomaly 4: Transmission RSF Pump Failure (Violating 10-11.5 kg/cm² cruise bound)
+        if unit == 3 and hour == 350:
+            # Gearbox pressure fails to build during cruise RPMs
+            cruise_idx = np.where((RPM >= 1600) & (RPM <= 1900))[0]
+            P_gear[cruise_idx] = np.random.normal(7.5, 0.5, len(cruise_idx)) 
+
+        # Anomaly 5: Starter Motor Short Circuit (Violating 42-48V cranking bound)
+        if unit == 4 and hour == 150:
+            # Starter pulls too much amperage, dragging the series voltage down severely
+            crank_idx = np.where((RPM > 0) & (RPM < 400))[0]
+            Voltage[crank_idx] = np.random.normal(34.0, 1.2, len(crank_idx))
+
+        # ====================================================================
+        # --- HARDWARE & ADC CLIPPING LAYER ---
+        # Simulates physical gauge limits to prevent mathematically impossible outputs.
+        # This MUST run after anomalies so we don't accidentally clip out the failures.
+        # ====================================================================
+        # ====================================================================
+        # --- HARDWARE & ADC CLIPPING LAYER ---
+        # Simulates physical gauge limits to prevent mathematically impossible outputs.
+        # ====================================================================
         
+        # Analog gauges rest at 50°C and max out at 130°C
+        T_oil = np.clip(T_oil, 50.0, 125.0)    
+        T_cool = np.clip(T_cool, 50.0, 120.0)  
+        
+        P_oil = np.clip(P_oil, 0.0, 15.0)                
+        P_gear = np.clip(P_gear, 0.0, 25.0)              
+        RPM = np.clip(RPM, 0.0, 2200.0)                  
+        Current = np.clip(Current, -1000.0, 250.0)       
+        Voltage = np.clip(Voltage, 8.0, 55.0)            
+        Fuel_Percent = np.clip(Fuel_Percent, 0.0, 100.0)
+
         # Formats the session data into a beautifully labeled tabular DataFrame
         session_df = pd.DataFrame({
             'Engine_ID': unit,
